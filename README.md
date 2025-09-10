@@ -94,6 +94,7 @@ make logs             # Просмотр логов
 ├── apache.conf             # Конфигурация Apache
 ├── init.sql               # Инициализация БД и тестовые данные
 ├── README.md              # Документация
+├── test_cases_calculator_ui.md # Тестовые кейсы
 └── src/                   # Исходный код приложения
     ├── index.php          # Главная страница
     ├── Config/
@@ -103,9 +104,36 @@ make logs             # Просмотр логов
     │   └── Transaction.php # Модель транзакций
     ├── Services/
     │   └── CalculatorService.php # Бизнес-логика
-    └── api/
-        └── index.php      # API endpoints
+    ├── api/
+    │   └── index.php      # API endpoints
+    └── swagger/           # API документация
+        ├── index.html     # Swagger UI
+        └── swagger.json   # OpenAPI спецификация
 ```
+## API Документация
+
+### Swagger UI
+
+Для удобной работы с API доступна интерактивная документация Swagger UI:
+**Локально:** `http://localhost:8080/swagger/index.html`
+
+**Онлайн:** [Открыть Swagger UI на GitHub](https://htmlpreview.github.io/?https://github.com/sorkin19822/account-calculator/blob/main/src/swagger/index.html)
+
+**Возможности Swagger UI:**
+- **Интерактивное тестирование** всех API endpoints
+- **Подробное описание** параметров запросов и ответов
+- **Примеры использования** для каждого метода
+- **Схемы данных** с описанием всех полей
+- **Try it out** функция для выполнения реальных запросов
+
+**Доступные endpoints в документации:**
+- `GET /api/?action=accounts` - Получение списка счетов
+- `GET /api/?action=transactions` - История операций
+- `GET /api/?action=calculate` - Расчет распределения средств
+- `POST /api/?action=deposit` - Выполнение пополнения
+- `POST /api/?action=update_account` - Обновление данных счета
+
+Swagger UI автоматически загружается при запуске приложения и не требует дополнительной настройки.
 
 ## API Endpoints
 

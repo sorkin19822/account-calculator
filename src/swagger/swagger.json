@@ -1,0 +1,370 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Account Calculator API",
+    "description": "API для калькулятора оптимального распределения средств по счетам",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/api",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Получить данные",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["accounts", "transactions", "calculate"]
+            },
+            "description": "Тип запрашиваемых данных"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            },
+            "description": "Лимит записей для transactions"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "format": "float"
+            },
+            "description": "Сумма для расчета распределения"
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Целевой счет для пополнения"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешный ответ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AccountsResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TransactionsResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CalculateResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка запроса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Выполнить операцию",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["deposit", "update_account"]
+            },
+            "description": "Тип операции"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/DepositRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UpdateAccountRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Операция выполнена успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка выполнения операции",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Account": {
+        "type": "object",
+        "properties": {
+          "account_number": {
+            "type": "string",
+            "description": "Номер счета"
+          },
+          "monthly_fee": {
+            "type": "number",
+            "format": "float",
+            "description": "Абонентская плата"
+          },
+          "balance": {
+            "type": "number",
+            "format": "float",
+            "description": "Текущий баланс"
+          },
+          "is_main": {
+            "type": "boolean",
+            "description": "Основной счет"
+          },
+          "is_frozen": {
+            "type": "boolean",
+            "description": "Заморожен ли счет"
+          }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "ID транзакции"
+          },
+          "account_number": {
+            "type": "string",
+            "description": "Номер счета"
+          },
+          "transaction_type": {
+            "type": "string",
+            "enum": ["deposit", "fee_deduction", "distribution", "balance_adjustment"],
+            "description": "Тип транзакции"
+          },
+          "amount": {
+            "type": "number",
+            "format": "float",
+            "description": "Сумма операции"
+          },
+          "balance_before": {
+            "type": "number",
+            "format": "float",
+            "description": "Баланс до операции"
+          },
+          "balance_after": {
+            "type": "number",
+            "format": "float",
+            "description": "Баланс после операции"
+          },
+          "description": {
+            "type": "string",
+            "description": "Описание операции"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Дата создания"
+          }
+        }
+      },
+      "DistributionResult": {
+        "type": "object",
+        "properties": {
+          "account_number": {
+            "type": "string",
+            "description": "Номер счета"
+          },
+          "monthly_fee": {
+            "type": "number",
+            "format": "float",
+            "description": "Абонентская плата"
+          },
+          "current_balance": {
+            "type": "number",
+            "format": "float",
+            "description": "Текущий баланс"
+          },
+          "allocated": {
+            "type": "number",
+            "format": "float",
+            "description": "Зачислено средств"
+          },
+          "final_balance": {
+            "type": "number",
+            "format": "float",
+            "description": "Итоговый баланс"
+          },
+          "is_main": {
+            "type": "boolean",
+            "description": "Основной счет"
+          },
+          "is_frozen": {
+            "type": "boolean",
+            "description": "Заморожен ли счет"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Активен ли счет"
+          }
+        }
+      },
+      "AccountsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Account"
+            }
+          }
+        }
+      },
+      "TransactionsResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Transaction"
+            }
+          }
+        }
+      },
+      "CalculateResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DistributionResult"
+            }
+          }
+        }
+      },
+      "DepositRequest": {
+        "type": "object",
+        "required": ["amount"],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "float",
+            "description": "Сумма пополнения",
+            "minimum": 0.01
+          },
+          "target": {
+            "type": "string",
+            "description": "Целевой счет (опционально)"
+          }
+        }
+      },
+      "UpdateAccountRequest": {
+        "type": "object",
+        "required": ["account_number", "monthly_fee", "balance"],
+        "properties": {
+          "account_number": {
+            "type": "string",
+            "description": "Номер счета"
+          },
+          "monthly_fee": {
+            "type": "number",
+            "format": "float",
+            "description": "Абонентская плата",
+            "minimum": 0
+          },
+          "balance": {
+            "type": "number",
+            "format": "float",
+            "description": "Новый баланс"
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "description": "Сообщение об успехе"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "description": "Сообщение об ошибке"
+          }
+        }
+      }
+    }
+  }
+}
