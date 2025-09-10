@@ -1,0 +1,16 @@
+{
+  "name": "account-calculator/app",
+  "description": "Калькулятор оптимального распределения средств по счетам",
+  "type": "project",
+  "require": {
+    "php": ">=7.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "AccountCalculator\\": "src/"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true
+  }
+}

@@ -1,6 +1,9 @@
 <?php
-require_once __DIR__ . '/../models/Account.php';
-require_once __DIR__ . '/../models/Transaction.php';
+
+namespace AccountCalculator\Services;
+
+use AccountCalculator\Models\Account;
+use AccountCalculator\Models\Transaction;
 
 class CalculatorService {
     private $accountModel;

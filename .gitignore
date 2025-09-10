@@ -1,7 +1,49 @@
+# Environment files
 .env
+.env.local
+.env.production
+
+# Logs
 *.log
+logs/
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Composer
 vendor/
+composer.lock
+
+# Node.js
 node_modules/
+npm-debug.log
+yarn-error.log
+
+# IDE files
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+.dockerignore
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Database
+*.sqlite
+*.db
+
+# Build artifacts
+dist/
+build/

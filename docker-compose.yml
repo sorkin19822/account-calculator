@@ -13,7 +13,9 @@ services:
       - DB_USER=root
       - DB_PASSWORD=rootpassword
     volumes:
-      - ./src:/var/www/html
+      - .:/var/www/project  # Весь проект
+      - ./src:/var/www/html # Web-корень
+    working_dir: /var/www/project
     networks:
       - app-network
 

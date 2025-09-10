@@ -8,10 +8,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/../services/CalculatorService.php';
-require_once __DIR__ . '/../models/Account.php';
-require_once __DIR__ . '/../models/Transaction.php';
+require_once __DIR__ . '/../bootstrap.php';
+
+use AccountCalculator\Models\Account;
+use AccountCalculator\Models\Transaction;
+use AccountCalculator\Services\CalculatorService;
 
 $calculatorService = new CalculatorService();
 $accountModel = new Account();

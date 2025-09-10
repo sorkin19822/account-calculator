@@ -1,4 +1,10 @@
 <?php
+
+namespace AccountCalculator\Config;
+
+use PDO;
+use PDOException;
+
 class Database {
     private $host;
     private $db_name;

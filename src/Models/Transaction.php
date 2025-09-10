@@ -1,5 +1,9 @@
 <?php
-require_once __DIR__ . '/../config/database.php';
+
+namespace AccountCalculator\Models;
+
+use AccountCalculator\Config\Database;
+use PDO;
 
 class Transaction {
     private $conn;

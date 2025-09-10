@@ -1,16 +1,21 @@
-.PHONY: help build up down restart logs clean install test
+.PHONY: help build up down restart logs clean install test composer-install
 
 # Default target
 help:
 	@echo "Доступные команды:"
-	@echo "  build    - Сборка контейнеров"
-	@echo "  up       - Запуск приложения"
-	@echo "  down     - Остановка приложения"
-	@echo "  restart  - Перезапуск приложения"
-	@echo "  logs     - Просмотр логов"
-	@echo "  clean    - Полная очистка (удаление данных)"
-	@echo "  install  - Первоначальная установка"
-	@echo "  test     - Запуск тестов API"
+	@echo "  build           - Сборка контейнеров"
+	@echo "  up              - Запуск приложения"
+	@echo "  down            - Остановка приложения"
+	@echo "  restart         - Перезапуск приложения"
+	@echo "  logs            - Просмотр логов"
+	@echo "  clean           - Полная очистка (удаление данных)"
+	@echo "  install         - Первоначальная установка"
+	@echo "  composer-install - Установка зависимостей Composer"
+	@echo "  test            - Запуск тестов API"
+
+# Установка зависимостей Composer
+composer-install:
+	docker-compose exec web composer install --optimize-autoloader --working-dir=/var/www/project
 
 # Сборка контейнеров
 build:
@@ -39,7 +44,7 @@ clean:
 	docker system prune -f
 
 # Первоначальная установка
-install: build up
+install: build up composer-install
 	@echo "Ожидание инициализации базы данных..."
 	@sleep 30
 	@echo "Установка завершена! Откройте http://localhost:8080"
