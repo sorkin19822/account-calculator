@@ -113,3 +113,320 @@
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let accounts = [];
+    let calculatedDistribution = [];
+
+    // Загрузка данных при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAccounts();
+        loadTransactions();
+    });
+
+    // Загрузка списка счетов
+    async function loadAccounts() {
+        try {
+            const response = await fetch('/api/?action=accounts');
+            const result = await response.json();
+
+            if (result.success) {
+                accounts = result.data;
+                populateTargetAccountSelect();
+                renderAccountsTable();
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки счетов:', error);
+            alert('Ошибка загрузки данных');
+        }
+    }
+
+    // Заполнение селекта целевых счетов
+    function populateTargetAccountSelect() {
+        const select = document.getElementById('targetAccount');
+        select.innerHTML = '<option value="">Основной счет (с распределением)</option>';
+
+        accounts.forEach(account => {
+            if (!account.is_frozen) {
+                const option = document.createElement('option');
+                option.value = account.account_number;
+                option.textContent = `${account.account_number}${account.is_main ? ' (Основной)' : ''}`;
+                select.appendChild(option);
+            }
+        });
+    }
+
+    // Отображение таблицы счетов
+    function renderAccountsTable() {
+        const tbody = document.querySelector('#accountsTable tbody');
+        tbody.innerHTML = '';
+
+        accounts.forEach((account, index) => {
+            const distribution = calculatedDistribution.find(d => d.account_number === account.account_number);
+            const allocated = distribution ? parseFloat(distribution.allocated) : 0;
+            const finalBalance = distribution ? parseFloat(distribution.final_balance) : parseFloat(account.balance);
+
+            const row = document.createElement('tr');
+            row.className = getRowClass(account, finalBalance);
+
+            row.innerHTML = `
+                    <td>
+                        ${account.account_number}
+                        ${account.is_main ? '<span class="badge bg-primary">Основной</span>' : ''}
+                        ${account.is_frozen ? '<span class="badge bg-secondary">Заморожен</span>' : ''}
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm"
+                               value="${account.monthly_fee}"
+                               min="0" step="0.01"
+                               onchange="updateAccountField('${account.account_number}', 'monthly_fee', this.value)"
+                               ${account.is_frozen ? 'disabled' : ''}>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm"
+                               value="${account.balance}"
+                               step="0.01"
+                               onchange="updateAccountField('${account.account_number}', 'balance', this.value)">
+                    </td>
+                    <td class="fw-bold text-success">${allocated.toFixed(2)}</td>
+                    <td class="fw-bold ${finalBalance >= 0 ? 'text-success' : 'text-danger'}">${finalBalance.toFixed(2)}</td>
+                    <td>
+                        <span class="badge ${getStatusBadgeClass(account, finalBalance)}">
+                            ${getStatusText(account, finalBalance)}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary"
+                                onclick="editAccount('${account.account_number}')">
+                            Редактировать
+                        </button>
+                    </td>
+                `;
+
+            tbody.appendChild(row);
+        });
+    }
+
+    // Получение класса строки для стилизации
+    function getRowClass(account, finalBalance) {
+        if (account.is_main) return 'main-account';
+        if (account.is_frozen) return 'frozen-account';
+        if (finalBalance < 0) return 'inactive-account';
+        return 'active-account';
+    }
+
+    // Получение класса бейджа статуса
+    function getStatusBadgeClass(account, finalBalance) {
+        if (account.is_frozen) return 'bg-secondary';
+        if (finalBalance >= 0) return 'bg-success';
+        return 'bg-danger';
+    }
+
+    // Получение текста статуса
+    function getStatusText(account, finalBalance) {
+        if (account.is_frozen) return 'Заморожен';
+        if (finalBalance >= 0) return 'Активен';
+        return 'Неактивен';
+    }
+
+    // Обновление поля счета
+    function updateAccountField(accountNumber, field, value) {
+        const accountIndex = accounts.findIndex(a => a.account_number === accountNumber);
+        if (accountIndex !== -1) {
+            accounts[accountIndex][field] = parseFloat(value) || 0;
+            // Пересчитать распределение если оно было выполнено
+            if (calculatedDistribution.length > 0) {
+                calculateDistribution();
+            }
+        }
+    }
+
+    // Расчет распределения средств
+    async function calculateDistribution() {
+        const amount = parseFloat(document.getElementById('depositAmount').value);
+        const target = document.getElementById('targetAccount').value || null;
+
+        if (!amount || amount <= 0) {
+            alert('Введите корректную сумму пополнения');
+            return;
+        }
+
+        try {
+            const url = `/api/?action=calculate&amount=${amount}${target ? `&target=${target}` : ''}`;
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (result.success) {
+                calculatedDistribution = result.data;
+                renderAccountsTable();
+            } else {
+                alert('Ошибка расчета: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Ошибка расчета:', error);
+            alert('Ошибка выполнения расчета');
+        }
+    }
+
+    // Выполнение пополнения
+    async function processDeposit() {
+        const amount = parseFloat(document.getElementById('depositAmount').value);
+        const target = document.getElementById('targetAccount').value || null;
+
+        if (!amount || amount <= 0) {
+            alert('Введите корректную сумму пополнения');
+            return;
+        }
+
+        if (!confirm('Выполнить пополнение на сумму ' + amount + '?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/?action=deposit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    amount: amount,
+                    target: target
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('Пополнение успешно выполнено!');
+                calculatedDistribution = [];
+                loadAccounts();
+                loadTransactions();
+                document.getElementById('depositAmount').value = '';
+            } else {
+                alert('Ошибка пополнения: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Ошибка пополнения:', error);
+            alert('Ошибка выполнения пополнения');
+        }
+    }
+
+    // Редактирование счета
+    function editAccount(accountNumber) {
+        const account = accounts.find(a => a.account_number === accountNumber);
+        if (!account) return;
+
+        document.getElementById('editAccountNumber').value = accountNumber;
+        document.getElementById('editMonthlyFee').value = account.monthly_fee;
+        document.getElementById('editBalance').value = account.balance;
+
+        const modal = new bootstrap.Modal(document.getElementById('editAccountModal'));
+        modal.show();
+    }
+
+    // Сохранение изменений счета
+    async function saveAccountChanges() {
+        const accountNumber = document.getElementById('editAccountNumber').value;
+        const monthlyFee = parseFloat(document.getElementById('editMonthlyFee').value);
+        const balance = parseFloat(document.getElementById('editBalance').value);
+
+        try {
+            const response = await fetch('/api/?action=update_account', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    account_number: accountNumber,
+                    monthly_fee: monthlyFee,
+                    balance: balance
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                alert('Данные счета обновлены!');
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editAccountModal'));
+                modal.hide();
+                loadAccounts();
+                loadTransactions();
+            } else {
+                alert('Ошибка обновления: ' + result.message);
+            }
+        } catch (error) {
+            console.error('Ошибка обновления:', error);
+            alert('Ошибка сохранения данных');
+        }
+    }
+
+    // Загрузка истории транзакций
+    async function loadTransactions() {
+        try {
+            const response = await fetch('/api/?action=transactions&limit=20');
+            const result = await response.json();
+
+            if (result.success) {
+                renderTransactionsTable(result.data);
+            }
+        } catch (error) {
+            console.error('Ошибка загрузки транзакций:', error);
+        }
+    }
+
+    // Отображение таблицы транзакций
+    function renderTransactionsTable(transactions) {
+        const tbody = document.querySelector('#transactionsTable tbody');
+        tbody.innerHTML = '';
+
+        transactions.forEach(transaction => {
+            const row = document.createElement('tr');
+            const date = new Date(transaction.created_at).toLocaleString('ru-RU');
+
+            row.innerHTML = `
+                    <td>${date}</td>
+                    <td>
+                        ${transaction.account_number}
+                        ${transaction.is_main ? '<span class="badge bg-primary">Основной</span>' : ''}
+                    </td>
+                    <td>
+                        <span class="badge ${getTransactionTypeBadge(transaction.transaction_type)}">
+                            ${getTransactionTypeText(transaction.transaction_type)}
+                        </span>
+                    </td>
+                    <td class="${transaction.amount >= 0 ? 'text-success' : 'text-danger'}">
+                        ${transaction.amount >= 0 ? '+' : ''}${transaction.amount}
+                    </td>
+                    <td>${transaction.balance_before}</td>
+                    <td>${transaction.balance_after}</td>
+                    <td>${transaction.description || ''}</td>
+                `;
+
+            tbody.appendChild(row);
+        });
+    }
+
+    // Получение класса бейджа для типа транзакции
+    function getTransactionTypeBadge(type) {
+        switch (type) {
+            case 'deposit': return 'bg-success';
+            case 'fee_deduction': return 'bg-warning';
+            case 'distribution': return 'bg-info';
+            default: return 'bg-secondary';
+        }
+    }
+
+    // Получение текста типа транзакции
+    function getTransactionTypeText(type) {
+        switch (type) {
+            case 'deposit': return 'Пополнение';
+            case 'fee_deduction': return 'Списание абонплаты';
+            case 'distribution': return 'Распределение';
+            case 'balance_adjustment': return 'Корректировка';
+            default: return 'Другое';
+        }
+    }
+</script>
+</body>
+</html>

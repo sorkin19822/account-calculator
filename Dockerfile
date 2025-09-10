@@ -3,8 +3,9 @@ FROM php:8.2-apache
 # Установка расширений PHP
 RUN docker-php-ext-install pdo pdo_mysql mysqli
 
-# Включение mod_rewrite
+# Включение mod_rewrite и mod_headers
 RUN a2enmod rewrite
+RUN a2enmod headers
 
 # Копирование конфигурации Apache
 COPY apache.conf /etc/apache2/sites-available/000-default.conf
