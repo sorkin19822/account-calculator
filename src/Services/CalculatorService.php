@@ -31,7 +31,7 @@ class CalculatorService {
                 $allocated = 0;
                 $finalBalance = $account['balance'];
 
-                if ($account['account_number'] === $targetAccount && !$account['is_frozen']) {
+                if ($account['account_number'] === $targetAccount) {
                     $allocated = $depositAmount;
                     $finalBalance = $account['balance'] + $depositAmount;
                 }
@@ -51,61 +51,89 @@ class CalculatorService {
         }
 
         // Распределение при пополнении основного счета
-        // Сортируем счета: сначала основной, потом дополнительные (не замороженные)
-        usort($accounts, function($a, $b) {
-            if ($a['is_main'] != $b['is_main']) {
-                return $b['is_main'] - $a['is_main']; // Основной счет первым
-            }
-            return strcmp($a['account_number'], $b['account_number']);
-        });
-
+        // Инициализируем результат - все счета с нулевым распределением
         foreach ($accounts as $account) {
-            $allocated = 0;
-            $finalBalance = $account['balance'];
-
-            // Пропускаем замороженные счета
-            if ($account['is_frozen']) {
-                $result[] = [
-                    'account_number' => $account['account_number'],
-                    'monthly_fee' => $account['monthly_fee'],
-                    'current_balance' => $account['balance'],
-                    'allocated' => 0,
-                    'final_balance' => $account['balance'],
-                    'is_main' => $account['is_main'],
-                    'is_frozen' => $account['is_frozen'],
-                    'is_active' => $account['balance'] >= 0
-                ];
-                continue;
-            }
-
-            // Рассчитываем необходимую сумму для покрытия отрицательного баланса
-            if ($account['balance'] < 0 && $remainingAmount > 0) {
-                $needed = abs($account['balance']);
-                $allocated = min($needed, $remainingAmount);
-                $remainingAmount -= $allocated;
-                $finalBalance = $account['balance'] + $allocated;
-            }
-
-            // Если остались средства и баланс уже неотрицательный
-            if ($remainingAmount > 0 && $finalBalance >= 0) {
-                // Для основного счета добавляем все оставшиеся средства
-                if ($account['is_main']) {
-                    $allocated += $remainingAmount;
-                    $finalBalance += $remainingAmount;
-                    $remainingAmount = 0;
-                }
-            }
-
             $result[] = [
                 'account_number' => $account['account_number'],
                 'monthly_fee' => $account['monthly_fee'],
                 'current_balance' => $account['balance'],
-                'allocated' => $allocated,
-                'final_balance' => $finalBalance,
+                'allocated' => 0,
+                'final_balance' => $account['balance'],
                 'is_main' => $account['is_main'],
                 'is_frozen' => $account['is_frozen'],
-                'is_active' => $finalBalance >= 0
+                'is_active' => $account['balance'] >= 0
             ];
+        }
+
+        // Находим основной счет
+        $mainAccountIndex = null;
+        for ($i = 0; $i < count($result); $i++) {
+            if ($result[$i]['is_main']) {
+                $mainAccountIndex = $i;
+                break;
+            }
+        }
+
+        if ($mainAccountIndex === null) {
+            return $result; // Нет основного счета
+        }
+
+        // Шаг 1: Покрываем основной счет до уровня абонплаты
+        $mainAccount = &$result[$mainAccountIndex];
+        $targetBalance = $mainAccount['monthly_fee']; // Уровень абонплаты
+        $currentBalance = $mainAccount['current_balance'];
+
+        if ($currentBalance < $targetBalance && $remainingAmount > 0) {
+            $needed = $targetBalance - $currentBalance;
+            $toAllocate = min($needed, $remainingAmount);
+
+            $mainAccount['allocated'] = $toAllocate;
+            $mainAccount['final_balance'] = $currentBalance + $toAllocate;
+            $remainingAmount -= $toAllocate;
+        }
+
+        // Шаг 2: Распределяем остаток по дополнительным счетам с отрицательным балансом
+        // Сортируем дополнительные счета по балансу (самые отрицательные первыми)
+        $additionalAccounts = [];
+        for ($i = 0; $i < count($result); $i++) {
+            if (!$result[$i]['is_main'] && !$result[$i]['is_frozen'] && $result[$i]['current_balance'] < 0) {
+                $additionalAccounts[] = ['index' => $i, 'balance' => $result[$i]['current_balance']];
+            }
+        }
+
+        // Сортируем по балансу (самые отрицательные первыми)
+        usort($additionalAccounts, function($a, $b) {
+            return $a['balance'] - $b['balance'];
+        });
+
+        // Распределяем по отрицательным счетам
+        foreach ($additionalAccounts as $accountInfo) {
+            if ($remainingAmount <= 0) break;
+
+            $index = $accountInfo['index'];
+            $account = &$result[$index];
+            $currentBalance = $account['current_balance'];
+
+            // Покрываем отрицательный баланс
+            $needed = abs($currentBalance);
+            $toAllocate = min($needed, $remainingAmount);
+
+            $account['allocated'] = $toAllocate;
+            $account['final_balance'] = $currentBalance + $toAllocate;
+            $account['is_active'] = $account['final_balance'] >= 0;
+            $remainingAmount -= $toAllocate;
+        }
+
+        // Шаг 3: Если остались средства, добавляем их на основной счет
+        if ($remainingAmount > 0) {
+            $mainAccount['allocated'] += $remainingAmount;
+            $mainAccount['final_balance'] += $remainingAmount;
+            $remainingAmount = 0;
+        }
+
+        // Обновляем статус активности для всех счетов
+        for ($i = 0; $i < count($result); $i++) {
+            $result[$i]['is_active'] = $result[$i]['final_balance'] >= 0;
         }
 
         return $result;

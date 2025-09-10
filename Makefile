@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs clean install test composer-install
+.PHONY: help build up down restart logs clean install test composer-install reset-db
 
 # Default target
 help:
@@ -9,6 +9,7 @@ help:
 	@echo "  restart         - Перезапуск приложения"
 	@echo "  logs            - Просмотр логов"
 	@echo "  clean           - Полная очистка (удаление данных)"
+	@echo "  reset-db        - Пересоздание базы данных"
 	@echo "  install         - Первоначальная установка"
 	@echo "  composer-install - Установка зависимостей Composer"
 	@echo "  test            - Запуск тестов API"
@@ -37,6 +38,14 @@ restart:
 # Просмотр логов
 logs:
 	docker-compose logs -f
+
+# Пересоздание базы данных
+reset-db:
+	@echo "Пересоздание базы данных..."
+	docker-compose down
+	docker volume rm account-calculator_mysql_data || true
+	docker-compose up -d
+	@echo "База данных пересоздана!"
 
 # Полная очистка
 clean:

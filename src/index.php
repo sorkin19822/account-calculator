@@ -148,12 +148,16 @@
         select.innerHTML = '<option value="">Основной счет (с распределением)</option>';
 
         accounts.forEach(account => {
-            if (!account.is_frozen) {
-                const option = document.createElement('option');
-                option.value = account.account_number;
-                option.textContent = `${account.account_number}${account.is_main ? ' (Основной)' : ''}`;
-                select.appendChild(option);
-            }
+            // Убираем проверку !account.is_frozen, чтобы замороженные счета тоже были в селекте
+            const option = document.createElement('option');
+            option.value = account.account_number;
+
+            let label = account.account_number;
+            if (account.is_main) label += ' (Основной)';
+            if (account.is_frozen) label += ' (Заморожен)';
+
+            option.textContent = label;
+            select.appendChild(option);
         });
     }
 

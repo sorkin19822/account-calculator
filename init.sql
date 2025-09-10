@@ -15,7 +15,7 @@ CREATE TABLE accounts (
 CREATE TABLE transactions (
                               id INT AUTO_INCREMENT PRIMARY KEY,
                               account_number VARCHAR(20) NOT NULL,
-                              transaction_type ENUM('deposit', 'fee_deduction', 'distribution') NOT NULL,
+                              transaction_type ENUM('deposit', 'fee_deduction', 'distribution', 'balance_adjustment') NOT NULL,
                               amount DECIMAL(10,2) NOT NULL,
                               balance_before DECIMAL(10,2) NOT NULL,
                               balance_after DECIMAL(10,2) NOT NULL,
