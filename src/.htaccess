@@ -1,0 +1,19 @@
+RewriteEngine On
+
+# API routes
+RewriteRule ^api/?(.*)$ api/index.php [QSA,L]
+
+# Default to index.php
+DirectoryIndex index.php
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+
+# Enable CORS for API
+<If "%{REQUEST_URI} =~ m#^/api/#">
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+</If>
