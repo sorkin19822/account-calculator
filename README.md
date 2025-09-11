@@ -115,9 +115,8 @@ make logs             # Просмотр логов
 ### Swagger UI
 
 Для удобной работы с API доступна интерактивная документация Swagger UI:
-**Локально:** `http://localhost:8080/swagger/index.html`
 
-**Онлайн:** [Открыть Swagger UI на GitHub](https://htmlpreview.github.io/?https://github.com/sorkin19822/account-calculator/blob/main/src/swagger/index.html)
+**Локально:** `http://localhost:8080/swagger/index.html`
 
 **Возможности Swagger UI:**
 - **Интерактивное тестирование** всех API endpoints
