@@ -41,7 +41,7 @@
             tryItOutEnabled: true,
             requestInterceptor: function(request) {
                 if (!request.url.startsWith('http')) {
-                    request.url = './swagger/' + request.url.replace(/^\/api\//, '');
+                    request.url = './' + request.url.replace(/^\/api\//, '');
                 }
                 return request;
             }
