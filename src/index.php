@@ -143,12 +143,12 @@
     }
 
     // Заполнение селекта целевых счетов
+    // Заполнение селекта целевых счетов
     function populateTargetAccountSelect() {
         const select = document.getElementById('targetAccount');
         select.innerHTML = '<option value="">Основной счет (с распределением)</option>';
 
         accounts.forEach(account => {
-            // Убираем проверку !account.is_frozen, чтобы замороженные счета тоже были в селекте
             const option = document.createElement('option');
             option.value = account.account_number;
 
@@ -157,6 +157,13 @@
             if (account.is_frozen) label += ' (Заморожен)';
 
             option.textContent = label;
+
+            // Блокируем замороженные счета
+            if (account.is_frozen) {
+                option.disabled = true;
+                option.style.color = '#6c757d'; // Серый цвет для неактивных опций
+            }
+
             select.appendChild(option);
         });
     }
