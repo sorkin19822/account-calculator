@@ -31,7 +31,7 @@ class CalculatorService {
                 $allocated = 0;
                 $finalBalance = $account['balance'];
 
-                if ($account['account_number'] === $targetAccount && !$account['is_frozen']) {
+                if ($account['account_number'] === $targetAccount) {
                     $allocated = $depositAmount;
                     $finalBalance = $account['balance'] + $depositAmount;
                 }
