@@ -20,7 +20,7 @@ services:
       - app-network
 
   db:
-    image: mysql:8.0
+    image: mysql:8.0-debian
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_DATABASE: accounts_db
