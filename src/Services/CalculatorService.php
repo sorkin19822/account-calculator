@@ -23,27 +23,27 @@ class CalculatorService {
      */
     public function calculateDistribution($accounts, $depositAmount, $targetAccount = null) {
         $result = [];
-        $remainingAmount = $depositAmount;
+        $remainingAmount = (float)$depositAmount;
 
         // Если указан конкретный счет для пополнения
         if ($targetAccount !== null) {
             foreach ($accounts as $account) {
                 $allocated = 0;
-                $finalBalance = $account['balance'];
+                $finalBalance = (float)$account['balance'];
 
                 if ($account['account_number'] === $targetAccount) {
-                    $allocated = $depositAmount;
-                    $finalBalance = $account['balance'] + $depositAmount;
+                    $allocated = $remainingAmount;
+                    $finalBalance = (float)$account['balance'] + $remainingAmount;
                 }
 
                 $result[] = [
                     'account_number' => $account['account_number'],
-                    'monthly_fee' => $account['monthly_fee'],
-                    'current_balance' => $account['balance'],
+                    'monthly_fee' => (float)$account['monthly_fee'],
+                    'current_balance' => (float)$account['balance'],
                     'allocated' => $allocated,
                     'final_balance' => $finalBalance,
-                    'is_main' => $account['is_main'],
-                    'is_frozen' => $account['is_frozen'],
+                    'is_main' => (bool)$account['is_main'],
+                    'is_frozen' => (bool)$account['is_frozen'],
                     'is_active' => $finalBalance >= 0
                 ];
             }
@@ -55,13 +55,13 @@ class CalculatorService {
         foreach ($accounts as $account) {
             $result[] = [
                 'account_number' => $account['account_number'],
-                'monthly_fee' => $account['monthly_fee'],
-                'current_balance' => $account['balance'],
+                'monthly_fee' => (float)$account['monthly_fee'],
+                'current_balance' => (float)$account['balance'],
                 'allocated' => 0,
-                'final_balance' => $account['balance'],
-                'is_main' => $account['is_main'],
-                'is_frozen' => $account['is_frozen'],
-                'is_active' => $account['balance'] >= 0
+                'final_balance' => (float)$account['balance'],
+                'is_main' => (bool)$account['is_main'],
+                'is_frozen' => (bool)$account['is_frozen'],
+                'is_active' => (float)$account['balance'] >= 0
             ];
         }
 
@@ -78,65 +78,214 @@ class CalculatorService {
             return $result; // Нет основного счета
         }
 
-        // Шаг 1: Покрываем основной счет до уровня абонплаты
-        $mainAccount = &$result[$mainAccountIndex];
-        $targetBalance = $mainAccount['monthly_fee']; // Уровень абонплаты
-        $currentBalance = $mainAccount['current_balance'];
+        // Новая логика распределения
+        $this->distributeAmountProprtionally($result, $remainingAmount, $mainAccountIndex);
 
-        if ($currentBalance < $targetBalance && $remainingAmount > 0) {
-            $needed = $targetBalance - $currentBalance;
-            $toAllocate = min($needed, $remainingAmount);
+        return $result;
+    }
 
-            $mainAccount['allocated'] = $toAllocate;
-            $mainAccount['final_balance'] = $currentBalance + $toAllocate;
-            $remainingAmount -= $toAllocate;
-        }
+    /**
+     * Итеративное распределение суммы согласно алгоритму
+     * @param array &$result - массив счетов для обновления
+     * @param float $amount - сумма для распределения
+     * @param int $mainAccountIndex - индекс основного счета
+     */
+    private function distributeAmountProprtionally(&$result, $amount, $mainAccountIndex) {
+        if ($amount <= 0) return;
 
-        // Шаг 2: Распределяем остаток по дополнительным счетам с отрицательным балансом
-        // Сортируем дополнительные счета по балансу (самые отрицательные первыми)
-        $additionalAccounts = [];
-        for ($i = 0; $i < count($result); $i++) {
-            if (!$result[$i]['is_main'] && !$result[$i]['is_frozen'] && $result[$i]['current_balance'] < 0) {
-                $additionalAccounts[] = ['index' => $i, 'balance' => $result[$i]['current_balance']];
+        $remainingAmount = $amount;
+
+        // Итерация 0: Погашение долгов пропорционально
+        $remainingAmount = $this->debtPayoffIteration($result, $remainingAmount);
+
+        // Итерация 1: Доводим все счета до уровня абонплаты
+        $remainingAmount = $this->firstIteration($result, $remainingAmount);
+
+        // Итерации 2+: Добавляем по абонплате пропорционально, пока есть средства
+        while ($remainingAmount > 0) {
+            $amountBefore = $remainingAmount;
+            $remainingAmount = $this->nextIteration($result, $remainingAmount);
+
+            // Если сумма не изменилась, значит нет активных счетов для распределения
+            // Добавляем остаток на основной счет
+            if ($amountBefore == $remainingAmount) {
+                $result[$mainAccountIndex]['allocated'] += $remainingAmount;
+                $result[$mainAccountIndex]['final_balance'] += $remainingAmount;
+                break;
             }
-        }
-
-        // Сортируем по балансу (самые отрицательные первыми)
-        usort($additionalAccounts, function($a, $b) {
-            return $a['balance'] - $b['balance'];
-        });
-
-        // Распределяем по отрицательным счетам
-        foreach ($additionalAccounts as $accountInfo) {
-            if ($remainingAmount <= 0) break;
-
-            $index = $accountInfo['index'];
-            $account = &$result[$index];
-            $currentBalance = $account['current_balance'];
-
-            // Покрываем отрицательный баланс
-            $needed = abs($currentBalance);
-            $toAllocate = min($needed, $remainingAmount);
-
-            $account['allocated'] = $toAllocate;
-            $account['final_balance'] = $currentBalance + $toAllocate;
-            $account['is_active'] = $account['final_balance'] >= 0;
-            $remainingAmount -= $toAllocate;
-        }
-
-        // Шаг 3: Если остались средства, добавляем их на основной счет
-        if ($remainingAmount > 0) {
-            $mainAccount['allocated'] += $remainingAmount;
-            $mainAccount['final_balance'] += $remainingAmount;
-            $remainingAmount = 0;
         }
 
         // Обновляем статус активности для всех счетов
         for ($i = 0; $i < count($result); $i++) {
             $result[$i]['is_active'] = $result[$i]['final_balance'] >= 0;
         }
+    }
 
-        return $result;
+    /**
+     * Итерация 0: Погашение долгов пропорционально
+     */
+    private function debtPayoffIteration(&$result, $amount) {
+        if ($amount <= 0) return $amount;
+
+        // Собираем информацию о счетах с долгами (исключая замороженные)
+        $debtAccounts = [];
+        $totalDebt = 0;
+
+        for ($i = 0; $i < count($result); $i++) {
+            if ($result[$i]['is_frozen']) continue;
+
+            $currentBalance = $result[$i]['final_balance'];
+            if ($currentBalance < 0) {
+                $debt = abs($currentBalance);
+                $debtAccounts[] = [
+                    'index' => $i,
+                    'debt' => $debt
+                ];
+                $totalDebt += $debt;
+            }
+        }
+
+        // Если нет долгов, возвращаем всю сумму
+        if (empty($debtAccounts) || $totalDebt == 0) {
+            return $amount;
+        }
+
+        // Погашаем долги пропорционально
+        $amountForDebts = min($amount, $totalDebt);
+        $remainingForDebts = $amountForDebts;
+
+        foreach ($debtAccounts as $debtInfo) {
+            if ($remainingForDebts <= 0) break;
+
+            $index = $debtInfo['index'];
+            $debt = $debtInfo['debt'];
+            $proportion = $debt / $totalDebt;
+            $allocation = $amountForDebts * $proportion;
+
+            // Корректируем округление для последнего счета
+            if ($debtInfo === end($debtAccounts)) {
+                $allocation = $remainingForDebts;
+            }
+
+            // Не можем погасить больше, чем сам долг
+            $allocation = min($allocation, $debt);
+
+            $result[$index]['allocated'] += $allocation;
+            $result[$index]['final_balance'] += $allocation;
+            $remainingForDebts -= $allocation;
+        }
+
+        return $amount - $amountForDebts;
+    }
+
+    /**
+     * Первая итерация: доводим балансы до уровня абонплаты
+     */
+    private function firstIteration(&$result, $amount) {
+        $remainingAmount = $amount;
+
+        for ($i = 0; $i < count($result); $i++) {
+            if ($result[$i]['is_frozen'] || $remainingAmount <= 0) continue;
+
+            $currentBalance = $result[$i]['final_balance'];
+            $monthlyFee = $result[$i]['monthly_fee'];
+
+            // Если баланс меньше абонплаты, доводим до уровня абонплаты
+            if ($currentBalance < $monthlyFee) {
+                $needed = $monthlyFee - $currentBalance;
+                $toAllocate = min($needed, $remainingAmount);
+
+                $result[$i]['allocated'] += $toAllocate;
+                $result[$i]['final_balance'] += $toAllocate;
+                $remainingAmount -= $toAllocate;
+            }
+        }
+
+        return $remainingAmount;
+    }
+
+    /**
+     * Следующие итерации: добавляем по абонплате пропорционально
+     */
+    private function nextIteration(&$result, $amount) {
+        if ($amount <= 0) return $amount;
+
+        // Собираем активные счета (не замороженные, с абонплатой > 0)
+        // Основной счет идет первым
+        $activeAccounts = [];
+        $mainAccountIndex = null;
+
+        // Сначала находим основной счет
+        for ($i = 0; $i < count($result); $i++) {
+            if ($result[$i]['is_main'] && !$result[$i]['is_frozen'] && $result[$i]['monthly_fee'] > 0) {
+                $activeAccounts[] = [
+                    'index' => $i,
+                    'monthly_fee' => $result[$i]['monthly_fee']
+                ];
+                $mainAccountIndex = $i;
+                break;
+            }
+        }
+
+        // Затем добавляем остальные активные счета
+        for ($i = 0; $i < count($result); $i++) {
+            if (!$result[$i]['is_main'] && !$result[$i]['is_frozen'] && $result[$i]['monthly_fee'] > 0) {
+                $activeAccounts[] = [
+                    'index' => $i,
+                    'monthly_fee' => $result[$i]['monthly_fee']
+                ];
+            }
+        }
+
+        if (empty($activeAccounts)) {
+            return $amount; // Нет активных счетов
+        }
+
+        // Вычисляем общую сумму абонплат
+        $totalMonthlyFee = 0;
+        foreach ($activeAccounts as $account) {
+            $totalMonthlyFee += $account['monthly_fee'];
+        }
+
+        // Проверяем, хватает ли средств на полный цикл абонплат
+        if ($amount >= $totalMonthlyFee) {
+            // Хватает - добавляем по абонплате каждому
+            foreach ($activeAccounts as $accountInfo) {
+                $index = $accountInfo['index'];
+                $monthlyFee = $accountInfo['monthly_fee'];
+
+                $result[$index]['allocated'] += $monthlyFee;
+                $result[$index]['final_balance'] += $monthlyFee;
+                $amount -= $monthlyFee;
+            }
+        } else {
+            // Не хватает - распределяем по приоритету
+            $remainingAmount = $amount;
+
+            foreach ($activeAccounts as $accountInfo) {
+                if ($remainingAmount <= 0) break;
+
+                $index = $accountInfo['index'];
+                $monthlyFee = $accountInfo['monthly_fee'];
+
+                if ($remainingAmount >= $monthlyFee) {
+                    // Хватает на полную абонплату
+                    $result[$index]['allocated'] += $monthlyFee;
+                    $result[$index]['final_balance'] += $monthlyFee;
+                    $remainingAmount -= $monthlyFee;
+                } else {
+                    // Не хватает на полную абонплату - отдаем весь остаток
+                    $result[$index]['allocated'] += $remainingAmount;
+                    $result[$index]['final_balance'] += $remainingAmount;
+                    $remainingAmount = 0;
+                    break;
+                }
+            }
+
+            $amount = 0; // Вся сумма распределена
+        }
+
+        return $amount;
     }
 
     /**
@@ -159,7 +308,7 @@ class CalculatorService {
                     // Записываем транзакцию
                     $description = $targetAccount ?
                         "Прямое пополнение счета" :
-                        "Распределение при пополнении основного счета";
+                        "Пропорциональное распределение при пополнении основного счета";
 
                     $this->transactionModel->addTransaction(
                         $accountData['account_number'],
