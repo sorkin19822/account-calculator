@@ -95,7 +95,7 @@ class CalculatorService {
 
         $remainingAmount = $amount;
 
-        // Итерация 0: Погашение долгов пропорционально
+        // Итерация 0: Погашение долгов - сначала наименьшие
         $remainingAmount = $this->debtPayoffIteration($result, $remainingAmount);
 
         // Итерация 1: Доводим все счета до уровня абонплаты
@@ -122,14 +122,13 @@ class CalculatorService {
     }
 
     /**
-     * Итерация 0: Погашение долгов пропорционально
+     * Итерация 0: Погашение долгов - сначала наименьшие
      */
     private function debtPayoffIteration(&$result, $amount) {
         if ($amount <= 0) return $amount;
 
         // Собираем информацию о счетах с долгами (исключая замороженные)
         $debtAccounts = [];
-        $totalDebt = 0;
 
         for ($i = 0; $i < count($result); $i++) {
             if ($result[$i]['is_frozen']) continue;
@@ -141,41 +140,43 @@ class CalculatorService {
                     'index' => $i,
                     'debt' => $debt
                 ];
-                $totalDebt += $debt;
             }
         }
 
         // Если нет долгов, возвращаем всю сумму
-        if (empty($debtAccounts) || $totalDebt == 0) {
+        if (empty($debtAccounts)) {
             return $amount;
         }
 
-        // Погашаем долги пропорционально
-        $amountForDebts = min($amount, $totalDebt);
-        $remainingForDebts = $amountForDebts;
+        // Сортируем долги по возрастанию (наименьшие сначала)
+        usort($debtAccounts, function($a, $b) {
+            return $a['debt'] <=> $b['debt'];
+        });
 
+        $remainingAmount = $amount;
+
+        // Погашаем долги по порядку - сначала наименьшие
         foreach ($debtAccounts as $debtInfo) {
-            if ($remainingForDebts <= 0) break;
+            if ($remainingAmount <= 0) break;
 
             $index = $debtInfo['index'];
             $debt = $debtInfo['debt'];
-            $proportion = $debt / $totalDebt;
-            $allocation = $amountForDebts * $proportion;
 
-            // Корректируем округление для последнего счета
-            if ($debtInfo === end($debtAccounts)) {
-                $allocation = $remainingForDebts;
+            if ($remainingAmount >= $debt) {
+                // Хватает средств - погашаем долг полностью
+                $result[$index]['allocated'] += $debt;
+                $result[$index]['final_balance'] += $debt; // Баланс станет 0
+                $remainingAmount -= $debt;
+            } else {
+                // Не хватает средств - погашаем частично
+                $result[$index]['allocated'] += $remainingAmount;
+                $result[$index]['final_balance'] += $remainingAmount;
+                $remainingAmount = 0;
+                break;
             }
-
-            // Не можем погасить больше, чем сам долг
-            $allocation = min($allocation, $debt);
-
-            $result[$index]['allocated'] += $allocation;
-            $result[$index]['final_balance'] += $allocation;
-            $remainingForDebts -= $allocation;
         }
 
-        return $amount - $amountForDebts;
+        return $remainingAmount;
     }
 
     /**
